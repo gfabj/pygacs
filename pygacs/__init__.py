@@ -16,11 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import time
-import os
 import getpass
-# Directive to matblotlib for creating interactive graphs
-# Use %matplotlib inline for just creating the plots
-get_ipython().magic('matplotlib notebook')
 
 # Gaia Archive REST URL
 gacs_url = 'https://gea.esac.esa.int/tap-server/'
