@@ -45,7 +45,6 @@ password = getpass.getpass('Enter cosmos password:')
 # POST the authentication
 resp = session.post(gacs_login_url,data = {'username':'edelpozo','password':password})
 
-
 # ## Create a function for executing asynchronous queries
 # 
 # - Copy this function ! .... it makes for you the queries to the Gaia Archive
@@ -293,4 +292,83 @@ pm_ra = pm_ra - np.mean(pm_ra)
 pm_dec = pm_dec - np.mean(pm_dec)
 plt.quiver(ra,dec,pm_ra,pm_dec,width=0.003,alpha=0.5,color='Green')
 plt.show()
+
+
+class GacsSession:
+  
+  def __init__(self , username='' , password='' , gacs_url='https://gea.esac.esa.int/tap-server/' , polling_interval=1.0):
+    '''
+    Constructor for the GacsSession object in charge of doing the requests to the 
+    Gaia archive
+    '''
+
+    self.polling_interval = polling_interval
+    self.gacs_url = 'https://gea.esac.esa.int/tap-server/'
+
+    # URL For synchronous queries
+    self.gacs_sync_url  = gacs_url + 'tap/sync'
+    # URL For asynchronous queries
+    self.gacs_async_url = gacs_url + 'tap/async' 
+    # Login URL
+    self.gacs_login_url = gacs_url + 'login'
+    # Delete JOBS URL
+    self.gacs_delete_url = gacs_url + 'tap/deletejobs'
+
+    # Init the HTTP client 
+    self.session = session.Session()
+    self.synchronous = username is '' and password is ''
+
+    # If not authenticated the asynchronous mode is activated and username and password is required
+    if not synchronous:
+      if password is '':
+        password = getpass.getpass('Enter cosmos password for user: ' + username)
+      # POST the authentication parameters
+      session.post(,data = {'username':username,'password':password})
+
+  def execute_query(self,query,format='csv',delete_job=True):
+    '''
+    Function for performing the query to the Gaia Archive
+    '''
+
+    gacs_query = {'PHASE':'RUN','REQUEST':'doQuery','LANG':'ADQL','FORMAT':results_format,'QUERY':query}
+    start = time.time()
+    resp = self.session.post(self.gacs_async_url,params=gacs_query)   
+    if resp.status_code != 200:
+        raise Exception('Error launching the job ... ', query , resp.text)       
+    url_job = resp.url    
+    print('Submitted job to GACS: Job URL=' + url_job)
+        
+    # Poll the server till the Query is finished
+    while True:       
+        resp = self.session.get(url_job)       
+        if resp.status_code != 200:
+            raise Exception('Error checking job status ... ', url_job , resp.text)         
+        if resp.text.find('COMPLETED') >= 0:
+            break;
+        if resp.text.find('ERROR') >= 0:
+            raise Exception('Error in the query exitting ... ', url_job , resp.text)   
+        time.sleep(self.polling_interval)   
+    
+    # Get results
+    results = self.session.get(url_job + '/results/result')
+    if results.status_code != 200:
+        raise Exception('Error launching the job ... ', query , results.text) 
+        
+    stop = time.time()
+    print('Query time: ' + str(stop-start) + ' seconds')
+    
+    # Delete the Job from the Gaia Archive
+    if delete_job:
+        job_id = url_job.split('/')[-1]
+        self.session.post(self.gacs_delete_url,data ={'JOB_IDS':job_id})
+        if resp.status_code != 200:
+            raise Exception('Error deleting the job ... ', job_id , resp.text) 
+    
+    return results
+
+
+
+
+
+
 
